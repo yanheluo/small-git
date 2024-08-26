@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+import sys
+import os
+import glob
+import shutil
+
+'''
+grip-checkout:
+ 1. Checking if a branch exists:
+  `branch_exist` function checks if a given branch name exists in the branch log file.
+
+ 2. Switching branches:
+  `switch_files` function handles the actual file switching logic, including checking for modifications,
+   removing unchanged files, copying new files, and handling possible file overwrite errors.
+
+ 3. Changing the current branch:
+  `change_branch` function first checks if the target branch exists,
+   then calls `switch_files` to complete the file switching, and finally updates the current branch record.
+
+'''
+
+
+
+def file_getchanged(file1,file2):
+    if not os.path.exists(file2):
+        return 1
+    if not os.path.exists(file1):
+        return 1
+    with open(file1,'rb') as f1, open(file2,'rb') as f2:
+        f1_content = f1.read()
+        f2_content = f2.read()
+        if f1_content == f2_content:
+            return False
+        else:
+            return True
+
+def get_current_branch():
+    with open(".grip/c_branch","r") as log:
+        return log.read().strip()
+
+def get_last_id():
+    c_branch = get_current_branch()
+    with open(f".grip/{c_branch}") as log:
+        line = log.read().strip()
+        if not line:
+            return -1
+        return int(line)
+
+def branch_exist(name):
+    find = False
+    with open(".grip/branch_log","r") as file:
+        lines = file.readlines()
+        for line in lines:
+            if line.strip() == name:
+                find = True
+    return find
+
+def switch_files(name,p_branch,p_last_id):
+    last_id = -1
+    with open(f".grip/{name}") as log:
+        line = log.read().strip()
+        if not line:
+            last_id= -1
+        last_id = int(line)
+
+    modified_file = []
+    modified_index = []
+    for file in os.listdir("."):
+        changed=False
+        if os.path.isfile(file) and not file.startswith('grip-'):
+            if file_getchanged(file,f".grip/{p_last_id}/{file}"):
+                changed = True
+                modified_file.append(file)
+            if not changed:
+                os.remove(file)
+
+    for file in os.listdir(".grip/index"):
+        changed=False
+        if file_getchanged(f".grip/index/{file}",f".grip/{p_last_id}/{file}"):
+            changed=True
+            modified_index.append(file)
+        if not changed:
+            os.remove(f".grip/index/{file}")
+
+    files = os.listdir(f".grip/{last_id}")
+    over_wrrited = []
+    for file in files:
+        if file not in modified_file:
+            shutil.copy(f".grip/{last_id}/{file}",f"{file}")
+        else:
+            if not os.path.exists(f".grip/{p_last_id}/{file}"):
+                over_wrrited.append(file)
+        if file not in modified_index:
+            shutil.copy(f".grip/{last_id}/{file}",f".grip/index/{file}")
+    if len(over_wrrited) > 0:
+        print("grip-checkout: error: Your changes to the following files would be overwritten by checkout:",file=sys.stderr)
+        for i in over_wrrited:
+            print(i,file=sys.stdout)
+        return False
+
+    print(f"Switched to branch '{name}'",file=sys.stdout)
+    return True
+
+    
+
+def change_branch(branch):
+    if not branch_exist(branch):
+        print(f"grip-checkout: error: unknown branch '{branch}'",file=sys.stderr)
+        return
+    p_branch = get_current_branch()
+    p_last_id = get_last_id()
+    if(switch_files(branch, p_branch, p_last_id)):
+        with open(".grip/c_branch","w") as file:
+            file.write(branch+'\n')
+
+branch_name = sys.argv[1]
+change_branch(branch_name)

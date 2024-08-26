@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+import sys
+import argparse
+import os
+import shutil
+
+''' 
+grip-merge:
+ 1. Merging specific commits (TODO), branch_name(DONE).
+ 2. Checking if a branch exists.
+ 3. Merging a specified branch into the current branch, 
+ handling both fast-forward and non-fast-forward merges.
+Conditions for Fast-forward Merge:
+    The current branch’s latest commit is an ancestor of the target branch’s latest commit.
+Steps for Fast-forward Merge:
+	1.	Update the target branch’s pointer to the current branch’s latest commit.
+	2.	Update the working directory and index to match the target branch’s state.
+Not-fast-forward Merge
+	The current branch’s latest commit is not an ancestor of the target branch’s latest commit.
+Steps for Not-fast-forward Merge:
+	1.	Identify the common ancestor of both branches.
+	2.	Merge changes from both branches, resolving conflicts if necessary.
+	3.	Create a new commit that combines the changes from both branches.
+4. Parsing command-line arguments for the branch or commit to merge and the merge message.
+'''
+
+def current_branch():
+    with open(".grip/c_branch","r") as log:
+        return log.read().strip()
+
+def get_latest_commit(name):
+    with open(f".grip/{name}") as log:
+        line = log.read().strip()
+        if not line:
+            return -1
+        return int(line)
+
+def file_multi_changes(file1,file2):
+    if not os.path.exists(file2):
+        return -1
+    change_number = 0
+    with open(file1,"rb") as f1, open(file2,"rb") as f2:
+        f1_content = f1.readlines()
+        f2_content = f2.readlines()
+        diff_length = abs(len(f1_content) - len(f2_content))
+        min_line = min(len(f1_content),len(f2_content))
+        for i in range(min_line):
+            if f1_content[i] != f2_content[i]:
+                change_number += 1
+        change_number += diff_length
+        return change_number
+
+def file_getchanged(file1,file2):
+    if not os.path.exists(file2):
+        return 1
+    if not os.path.exists(file1):
+        return 1
+    with open(file1,'rb') as f1, open(file2,'rb') as f2:
+        f1_content = f1.read()
+        f2_content = f2.read()
+        if f1_content == f2_content:
+            return False
+        else:
+            return True
+
+def commit_merge(c_id,comments):
+    ## TO DO
+    pass
+
+def branch_exist(name):
+    if os.path.exists(f".grip/{name}"):
+        return True
+    return False
+
+def branch_merge(name,comments):
+    if not branch_exist(name):
+        print(f"grip-merge: error: unknown branch '{name}'",file=sys.stderr)
+        return
+    c_branch = current_branch()
+    c_id = get_latest_commit(c_branch)
+    p_id = get_latest_commit(name)
+    c_files = os.listdir(f".grip/{c_id}")
+    p_files = os.listdir(f".grip/{p_id}")
+    create_commit = False
+    p_branch_path = []
+    c_branch_path = []
+    with open(f".grip/{name}.log","r") as p_file:
+        lines = p_file.readlines()
+        for line in lines:
+            p_branch_path.append(line)
+    with open(f".grip/{c_branch}.log","r") as c_file:
+        lines = c_file.readlines()
+        for line in lines:
+            c_branch_path.append(line)
+    p_branch_path = [line for line in p_branch_path if line.strip()]
+    c_branch_path = [line for line in c_branch_path if line.strip()]
+    p_branch_path.reverse()
+    c_branch_path.reverse()
+    min_id = min(len(p_branch_path),len(c_branch_path)) -1
+    if c_branch_path[min_id] != p_branch_path[min_id]:
+            create_commit = True
+    if True:
+        if len(p_branch_path) > 1:
+            p_base_id = p_branch_path[-2].split(" ")[0]
+        else:
+            p_base_id = p_branch_path[0].split(" ")[0]
+        if len(c_branch_path)>1:
+            c_base_id = c_branch_path[-2].split(" ")[0]
+        else:
+            c_base_id = c_branch_path[0].split(" ")[0]
+        cannot_merged = []
+        for file in c_files:
+            if file_getchanged(f".grip/{c_id}/{file}",f".grip/{c_base_id}/{file}"):
+                if os.path.exists(f".grip/{p_id}/{file}"):
+                    if file_getchanged(f".grip/{p_id}/{file}",f".grip/{p_base_id}/{file}"):
+                        cannot_merged.append(file)
+        if len(cannot_merged) > 0:
+            print("grip-merge: error: These files can not be merged:",file=sys.stderr)
+            for i in cannot_merged:
+                print(i,file=sys.stdout)
+            return
+    if not create_commit:
+        with open(f".grip/{name}.log","r") as log:
+            p_record = log.readline()
+        with open(f".grip/{c_branch}.log","r") as log:
+            old = log.read()
+        with open(f".grip/{c_branch}.log","w") as log:
+            new_one = p_record + old
+            log.write(new_one)
+        for file in os.listdir("."):
+            if os.path.isfile(file) and not file.startswith("grip-"):
+                os.remove(file)
+        for file in os.listdir(".grip/index"):
+            os.remove(f".grip/index/{file}")
+        for file in os.listdir(f".grip/{p_id}"):
+            shutil.copy(f".grip/{p_id}/{file}",f"{file}")
+            shutil.copy(f".grip/{p_id}/{file}",f".grip/index/{file}")
+        with open(f".grip/{c_branch}","w") as log:
+            log.write(str(p_id))
+        print("Fast-forward: no commit created",file=sys.stdout)
+
+    if create_commit:
+        commit_number = 0
+        with open(".grip/log","r") as log:
+            commit_number = len(log.readlines())
+        os.makedirs(f".grip/{commit_number}")
+
+        if len(p_branch_path) > 1:
+            p_base_id = p_branch_path[-2].split(" ")[0]
+        else:
+            p_base_id = p_branch_path[0].split(" ")[0]
+        if len(c_branch_path)>1:
+            c_base_id = c_branch_path[-2].split(" ")[0]
+        else:
+            c_base_id = c_branch_path[0].split(" ")[0]
+
+        for file in p_files:
+            if file_getchanged(f".grip/{p_id}/{file}",f".grip/{p_base_id}/{file}"):
+                shutil.copy(f".grip/{p_id}/{file}",f".grip/{commit_number}/{file}")
+        for file in c_files:
+            if file_getchanged(f".grip/{c_id}/{file}",f".grip/{c_base_id}/{file}"):
+                shutil.copy(f".grip/{c_id}/{file}",f".grip/{commit_number}/{file}")
+        last_log = []
+        with open(f".grip/{c_branch}.log","r") as o_log:
+            old_lines = o_log.readlines()
+            for line in old_lines:
+                last_log.append(line)
+        with open(f".grip/{name}.log","r") as log:
+            lines = log.readlines()
+            for line in lines:
+                if line not in last_log:
+                    last_log.append(line)
+        sorted_last_log = sorted(last_log, key=lambda x: int(x.split()[0]),reverse=True)
+        with open(f".grip/{c_branch}.log","w") as log:
+            log.writelines(sorted_last_log)
+        with open(f".grip/{c_branch}.log","r") as log:
+            old_info = log.read()
+        with open(f".grip/{c_branch}.log","w") as c_log:
+            new_info = str(commit_number) + " " + comments + '\n'
+            new_in = new_info + old_info
+            c_log.write(new_in)
+        for file in os.listdir("."):
+            if os.path.isfile(file) and not file.startswith("grip-"):
+                os.remove(file)
+        for file in os.listdir(".grip/index"):
+            os.remove(f".grip/index/{file}")
+        for file in os.listdir(f".grip/{commit_number}"):
+            shutil.copy(f".grip/{commit_number}/{file}",f"{file}")
+            shutil.copy(f".grip/{commit_number}/{file}",f".grip/index/{file}")
+        with open(f".grip/{c_branch}","w") as file:
+            file.write(str(commit_number))
+        print(f"Committed as commit {commit_number}",file=sys.stdout)
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('branch_commit',type=str)
+parser.add_argument('-m','--message',type=str)
+args = parser.parse_args()
+if not args.message:
+    print("grip-merge: error: empty commit message",file=sys.stderr)
+    sys.exit(1)
+para_0 = args.branch_commit
+comments = args.message
+if para_0.isnumeric():
+    commit_number = para_0
+    commit_merge(commit_number,comments)
+else:
+    branch_name = para_0
+    branch_merge(branch_name,comments)

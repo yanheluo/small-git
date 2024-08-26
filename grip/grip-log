@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+import sys
+''' 
+grip-log:
+    print all the info we need, wrriten all info about branch
+'''
+
+
+
+def get_current_branch():
+    with open(".grip/c_branch","r") as log:
+        return log.read().strip()
+c_branch = get_current_branch()
+with open(f'.grip/{c_branch}.log',"r") as log:
+    lines = log.readlines()
+    for line in lines:
+        print(line,end="",file=sys.stdout)

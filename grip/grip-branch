@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+import argparse
+import sys
+import os
+import shutil
+''' 
+grip-branch:
+    1.create_branch:
+        a new branch created: 
+                            1.copy the log of the current branch.
+                            2.update the branch_log.(add a new branch info)
+                            3.set the latest commit of this branch from the previous branch.
+    2.delete_branch:
+        a branch deleted:
+                            1.check whether it has some files that hasn't running command:merge
+                            2.delete all info of it.
+    3.print_branch:
+        just print info from the branch_log
+'''
+
+
+def current_branch():
+    with open(".grip/c_branch","r") as log:
+        return log.read().strip()
+
+def get_latest_commit():
+    c_branch = current_branch()
+    with open(f".grip/{c_branch}") as log:
+        line = log.read().strip()
+        if not line:
+            return -1
+        return int(line)
+
+def create_branch(name):
+    with open(".grip/branch_log","r") as log:
+        lines = log.readlines()
+        for line in lines:
+            if line.strip() == name:
+                print(f"grip-branch: error: branch '{name}' already exists",file=sys.stderr)
+                return 
+    p_branch = current_branch()
+    p_last_id = get_latest_commit()
+    with open(".grip/branch_log","a") as file:
+        file.write(name+'\n')
+    with open(f".grip/{name}","w") as new_branch:
+        new_branch.write(f"{p_last_id}") 
+    logs = []
+    with open(f".grip/{p_branch}.log","r") as f:
+        lines = f.readlines()
+        for line in lines:
+            logs.append(line)
+    with open(f".grip/{name}.log","w") as f:
+        f.writelines(logs)
+
+def print_branch():
+    last_id = get_latest_commit()
+    if last_id == -1:
+        print("grip-branch: error: this command can not be run until after the first commit",file=sys.stderr)
+        return
+    with open(".grip/branch_log","r") as file:
+        lines = file.readlines()
+        lines = sorted(lines)
+        for line in lines:
+            print(line,end='',file=sys.stdout)
+    
+
+def delete_branch(name):
+    new_log = []
+    if name =="trunk":
+        print("grip-branch: error: can not delete branch 'trunk': default branch",file=sys.stderr)
+        return
+    find = False
+    with open(".grip/branch_log","r") as file:
+        lines = file.readlines()
+        for line in lines:
+            if line.strip() != name:
+                new_log.append(line)
+            if line.strip() == name:
+                find = True
+    if not find:
+        print(f"grip-branch: error: branch '{name}' doesn't exist",file=sys.stderr)
+        return 
+    c_banch = current_branch()
+    c_commit_id = -1
+    d_commit_id = -1
+    with open(f".grip/{name}","r") as p:
+        p_id = p.read().strip()
+        d_commit_id = int(p_id)
+    with open(f".grip/{c_banch}","r") as c:
+        c_id = c.read().strip()
+        c_commit_id = int(c_id)
+    if c_commit_id < d_commit_id:
+        print(f"grip-branch: error: branch '{name}' has unmerged changes",file=sys.stderr)
+        return
+    with open(".grip/branch_log","w") as log:
+        log.writelines(new_log)
+    os.remove(f".grip/{name}")
+    print(f"Deleted branch '{name}'",file=sys.stdout)
+
+
+
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument('-d','--delete',action='store_true')
+parser.add_argument('branch_name',nargs='?',type=str)
+args = parser.parse_args()
+if not args.delete:
+    if args.branch_name:
+        create_branch(args.branch_name)
+    else:
+        print_branch()
+else:
+    delete_branch(args.branch_name)
+
+
+

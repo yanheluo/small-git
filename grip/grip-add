@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+import os
+import shutil
+import sys
+import re
+
+'''
+grip-add:
+
+change the stage of a file in .grip/index.
+1. if a file is created or modified, copy it to the index.
+2. if a file is deleted in work dir, delete it in the index.
+'''
+
+def add_file(names):
+    for element in names:
+        if os.path.exists(element) and os.path.exists(f".grip/index/{element}"):
+            shutil.copy(element,f".grip/index")
+        elif not os.path.exists(element) and os.path.exists(f".grip/index/{element}"):
+            os.remove(f".grip/index/{element}")
+        elif os.path.exists(element) and not os.path.exists(f".grip/index/{element}"):
+            shutil.copy(element,f".grip/index")
+        elif not os.path.exists(element) and not os.path.exists(f".grip/index/{element}"):
+            print("grip-add: error: can not open 'non_existent_file'",file=sys.stderr)
+
+if os.path.exists(".grip/index"):
+    source_files = sys.argv[1:]
+    add_file(source_files)
+else:
+    print("grip-add: error: grip repository directory .grip not found",file=sys.stderr)

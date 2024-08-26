@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+import os
+import argparse
+import shutil
+import sys
+'''
+grip-rm: 
+  1.force_index:
+	Removes specified files from the index without any checks.
+  2.force_remove:
+	Removes specified files from both the working directory and the index without any checks.
+  3.remove_index:
+	Removes specified files from the index, with checks to ensure the file in the index
+    matches the working file and repository.
+  4.normal_remove:
+	Removes specified files from both the working directory and the index,
+    with detailed checks to ensure consistency and avoid data loss.
+'''
+
+
+def get_current_branch():
+    with open(".grip/c_branch","r") as log:
+        return log.read().strip()
+
+def file_getchanged(file1,file2):
+    if not os.path.exists(file2):
+        return 1
+    if not os.path.exists(file1):
+        return 1
+    with open(file1,'rb') as f1, open(file2,'rb') as f2:
+        f1_content = f1.read()
+        f2_content = f2.read()
+        if f1_content == f2_content:
+            return False
+        else:
+            return True
+
+def get_latest_commit():
+    c_branch = get_current_branch()
+    with open(f".grip/{c_branch}") as log:
+        line = log.read().strip()
+        if not line:
+            return -1
+        return int(line)
+
+def force_index(files):
+    for element in files:
+        os.remove(f".grip/index/{element}")
+
+def force_remove(files):
+    for element in files:
+        is_index=True
+        is_work=True
+        if not os.path.exists(f".grip/index/{element}"):
+            is_index=False
+        if not os.path.exists(f'{element}'):
+            is_work=False
+        if is_index and is_work:
+            os.remove(f'{element}')
+            os.remove(f".grip/index/{element}")
+        else:
+            print(f"grip-rm: error: '{element}' is not in the grip repository",file=sys.stderr)
+
+def remove_index(files):
+    last_id = get_latest_commit()
+    for element in files:
+        in_index = True
+        if not os.path.exists(f'.grip/index/{element}'):
+            in_index=False
+        if not in_index:
+            print(f"grip-rm: error: '{element}' is not in the grip repository",file=sys.stderr)
+            continue
+        else:
+            if file_getchanged(f".grip/{last_id}/{element}",f".grip/index/{element}"):
+                if file_getchanged(f".grip/index/{element}",f"{element}"):
+                    print(f"grip-rm: error: '{element}' in index is different to both the working file and the repository",file=sys.stderr)
+                    continue
+        os.remove(f'.grip/index/{element}')
+
+def normal_remove(files):
+    last_id = get_latest_commit()
+    result = []
+    for element in files:
+        in_index = True
+        in_repo = True
+        if not os.path.exists(f'.grip/index/{element}'):
+            in_index = False
+        if not os.path.exists(f'.grip/{last_id}/{element}'):
+            in_repo = False
+        if not in_repo and in_index:
+            print(f"grip-rm: error: '{element}' has staged changes in the index",file=sys.stderr)
+            return
+        if not in_repo and not in_index:
+            print(f"grip-rm: error: '{element}' is not in the grip repository",file=sys.stderr)
+            return
+        if in_repo:
+            if file_getchanged(f"{element}",f".grip/{last_id}/{element}"):
+                if not file_getchanged(f".grip/index/{element}",f".grip/{last_id}/{element}"):
+                    print(f"grip-rm: error: '{element}' in the repository is different to the working file",file=sys.stderr)
+                    return
+            if file_getchanged(f".grip/{last_id}/{element}",f".grip/index/{element}"):
+                if file_getchanged(f".grip/index/{element}",f"{element}"):
+                    print(f"grip-rm: error: '{element}' in index is different to both the working file and the repository",file=sys.stderr)
+                    return
+                else:
+                    print(f"grip-rm: error: '{element}' has staged changes in the index",file=sys.stderr)
+                    return
+        result.append(element)
+    for i in result:
+        os.remove(f"{i}")
+        os.remove(f".grip/index/{i}")
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--force',action='store_true')
+parser.add_argument('--cached',action='store_true')
+parser.add_argument('files', nargs='+', help='Files to remove')
+args = parser.parse_args()
+if not args.cached and not args.force:
+    normal_remove(args.files)
+if args.cached and not args.force:
+    remove_index(args.files)
+if args.force and not args.cached:
+    force_remove(args.files)
+if args.force and args.cached:
+    force_index(args.files)
+

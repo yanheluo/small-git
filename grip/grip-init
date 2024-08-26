@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+import os
+import sys
+'''
+grip-init:
+
+initialize files of .grip, set trunk as the default branch.
+c_branch: current branch
+branch_log: info of branch
+log: info of commits(global)
+commit_count: counts of commits
+trunk(branch name): assigned to the latest commit of this branch
+trunk.log(branch log): all commits records made in this branch
+'''
+if os.path.exists(".grip"):
+    print("grip-init: error: .grip already exists",file=sys.stderr)
+else:
+    os.makedirs(".grip")
+    os.makedirs(".grip/index")
+    if not os.path.exists(".grip/c_branch"):
+        with open(".grip/c_branch","w") as c_blog:
+            c_blog.write("trunk")
+    if not os.path.exists(".grip/branch_log"):
+        with open(".grip/branch_log","w") as blog:
+            blog.write("trunk\n")
+    if not os.path.exists(".grip/log"):
+        with open(".grip/log",'w') as file:
+            pass
+    if not os.path.exists(".grip/commit_count"):
+        with open(".grip/commit_count",'w') as count:
+            count.write("0")
+    if not os.path.exists(".grip/trunk"):
+        with open(".grip/trunk","w") as b:
+            pass
+    if not os.path.exists(".grip/trunk.log"):
+        with open(".grip/trunk.log","w") as tl:
+            pass
+    print("Initialized empty grip repository in .grip",file=sys.stderr)

@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+import os
+import argparse
+import sys
+
+'''
+grip-show:
+  1.get_current_branch: Retrieves the name of the current branch.
+  2.get_last_id: Gets the ID of the latest commit.
+  3.result_find:
+   Finds and prints the contents of a specified file
+   from either the index or a specific commit.
+'''
+
+
+def get_current_branch():
+    with open(".grip/c_branch","r") as log:
+        return log.read().strip()
+
+def get_last_id():
+    c_branch = get_current_branch()
+    with open(f".grip/log") as log:
+        line = log.readline()
+        content = line.split(" ")
+        if content[0] =='':
+            return -1
+        else:
+            return int(content[0])
+
+def result_find(id,file):
+    c_branch = get_current_branch()
+    if id == -1:
+        file_name = f'.grip/index/{file}'
+        if os.path.exists(file_name):
+            with open(f"{file_name}",'r') as f:
+                content = f.read()
+            print(content,end='',file=sys.stdout)
+        else:
+            print(f"grip-show: error: '{file}' not found in index",file=sys.stderr)
+    else:
+        file_name = f'.grip/{id}/{file}'
+        if os.path.exists(file_name):
+            with open(f"{file_name}",'r') as f:
+                content = f.read()
+            print(content,end='',file=sys.stdout)
+        else:
+            print(f"grip-show: error: '{file}' not found in commit {id}",file=sys.stderr)
+
+id = -1
+file = ''
+parser = argparse.ArgumentParser()
+parser.add_argument('show_name',type=str)
+args = parser.parse_args()
+show_name = args.show_name
+show_parts = show_name.split(':')
+show_id = show_parts[0]
+file = show_parts[1]
+if show_id == '':
+    result_find(id,file)
+else:
+    id = int(show_id)
+    last_id = get_last_id()
+    if id > last_id:
+        print(f"grip-show: error: unknown commit '{id}'",file=sys.stderr)
+    else:
+        result_find(id,file)

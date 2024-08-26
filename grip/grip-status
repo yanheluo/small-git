@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+import sys
+import os
+
+'''
+grip-status:
+    show all info in the work dir of current branch.
+'''
+
+
+def get_current_branch():
+    with open(".grip/c_branch","r") as log:
+        return log.read().strip()
+
+def get_latest_commit():
+    c_branch = get_current_branch()
+    with open(f".grip/{c_branch}") as log:
+        line = log.read().strip()
+        if not line:
+            return -1
+        return int(line)
+
+def file_getchanged(file1,file2):
+    with open(file1,'rb') as f1, open(file2,'rb') as f2:
+        f1_content = f1.read()
+        f2_content = f2.read()
+        if f1_content == f2_content:
+            return False
+        else:
+            return True
+
+def files_from_work():
+    work_dir = "."
+    work_files = os.listdir(work_dir)
+    work_files = [entry for entry in work_files if os.path.isfile(os.path.join(work_dir,entry))]
+    status_data=[]
+    for element in sorted(work_files):
+        status_data.append(element)
+    return status_data
+
+def files_from_index():
+    index_dir = f'.grip/index'
+    index_files = os.listdir(index_dir)
+    status_data=[]
+    if len(index_files):
+        for element in sorted(index_files):
+            status_data.append(element)
+        return status_data
+    else:
+        return status_data
+    
+def files_from_commit():
+    last_id = get_latest_commit()
+    commit_dir = f'.grip/{last_id}'
+    commit_files = os.listdir(commit_dir)
+    status_data=[]
+    if last_id == -1 or len(commit_files) < 1:
+        return status_data
+    else:
+        for element in sorted(commit_files):
+            status_data.append(element)
+        return status_data
+
+def status_show():
+    work_data = files_from_work()
+    index_data = files_from_index()
+    commit_data = files_from_commit()
+    data_set = set()
+    c_branch = get_current_branch()
+    for data in work_data:
+        data_set.add(data)
+    for data in index_data:
+        data_set.add(data)
+    for data in commit_data:
+        data_set.add(data)
+    last_id = get_latest_commit()
+    for data in sorted(data_set):
+        if os.path.exists(f".grip/{last_id}/{data}"):
+            if os.path.exists(f".grip/index/{data}") and os.path.exists(f'{data}'):
+                if not file_getchanged(f'{data}',f'.grip/index/{data}'):
+                    if not file_getchanged(f'{data}',f".grip/{last_id}/{data}"):
+                        print(f"{data} - same as repo",file=sys.stdout)
+                if file_getchanged(f'{data}',f".grip/index/{data}"):
+                    if file_getchanged(f'.grip/index/{data}',f".grip/{last_id}/{data}"):
+                        print(f"{data} - file changed, different changes staged for commit",file=sys.stdout)
+                    if not file_getchanged(f'.grip/index/{data}',f".grip/{last_id}/{data}"):
+                        print(f"{data} - file changed, changes not staged for commit",file=sys.stdout)
+                else:
+                    if file_getchanged(f'.grip/index/{data}',f".grip/{last_id}/{data}"):
+                        print(f"{data} - file changed, changes staged for commit",file=sys.stdout)
+            if not os.path.exists(f'{data}') and os.path.exists(f'.grip/index/{data}'):
+                print(f"{data} - file deleted",file=sys.stdout)
+            if not os.path.exists(f'{data}') and not os.path.exists(f'.grip/index/{data}'):
+                print(f"{data} - file deleted, deleted from index",file=sys.stdout)
+            if os.path.exists(f'{data}') and not os.path.exists(f".grip/index/{data}"):
+                print(f"{data} - deleted from index",file=sys.stdout)
+        else:
+            if os.path.exists(f".grip/index/{data}") and os.path.exists(f"{data}"):
+                if file_getchanged(f"{data}",f".grip/index/{data}"):
+                    print(f"{data} - added to index, file changed",file=sys.stdout)
+                else:
+                    print(f"{data} - added to index",file=sys.stdout)
+            if not os.path.exists(f"{data}") and os.path.exists(f".grip/index/{data}"):
+                print(f"{data} - added to index, file deleted",file=sys.stdout)
+            if not os.path.exists(f".grip/index/{data}") and os.path.exists(f"{data}"):
+                print(f"{data} - untracked",file=sys.stdout)
+
+
+status_show()

@@ -1,0 +1,103 @@
+#!/usr/bin/env python3
+import os
+import argparse
+import shutil
+import sys
+
+'''
+grip-commit: 
+	1.	current_branch: Retrieves the name of the current branch.
+	2.	optinal_add: Adds files from the working directory to the index (staging area).
+	3.	get_latest_commit: Gets the latest commit ID from the current branch.
+	4.	file_getchanged: Checks if there are changes between two files.
+	5.	copy_allfiles: Handles the logic for committing changes,
+        including checking for modifications, updating logs, 
+        and copying files to the new commit directory.
+'''
+
+
+def current_branch():
+    with open(".grip/c_branch","r") as log:
+        return log.read().strip()
+
+def optinal_add():
+    files = os.listdir(f'.grip/index')
+    for element in files:
+        shutil.copy(f'{element}',f'.grip/index')
+    
+def get_latest_commit():
+    c_branch = current_branch()
+    with open(f".grip/{c_branch}") as log:
+        line = log.read().strip()
+        if not line:
+            return -1
+        return int(line)
+
+def file_getchanged(file1,file2):
+    if not os.path.exists(file2):
+        return 1
+    if not os.path.exists(file1):
+        return 1
+    with open(file1,'rb') as f1, open(file2,'rb') as f2:
+        f1_content = f1.read()
+        f2_content = f2.read()
+        if f1_content == f2_content:
+            return False
+        else:
+            return True
+
+def copy_allfiles(comments,all):
+    if all:
+        optinal_add()
+    c_branch = current_branch()
+    commit_number = 0
+    old_content = None
+    last_id = get_latest_commit()
+    files = os.listdir(f'.grip/index')
+    if last_id != -1:
+        commit_files = os.listdir(f'.grip/{last_id}')
+    else:
+        commit_files = []
+
+    changed = False
+    with open(f'.grip/log', 'r') as log:
+        old_content = log.read()
+    commit_number = len(old_content.splitlines())
+    if len(files) != len(commit_files):
+        changed = True
+    else:
+        for element in files:
+            if file_getchanged(f'.grip/index/{element}',f'.grip/{last_id}/{element}'):
+                changed=True
+    if changed:
+        with open(f'.grip/log','w') as log:
+            new_info = str(commit_number) + ' ' + comments + '\n'
+            new_content = new_info + old_content
+            log.write(new_content)
+        with open(f".grip/{c_branch}.log","r") as r_log:
+            branch_old = r_log.read()
+        with open(f".grip/{c_branch}.log","w") as c_log:
+            new_info = str(commit_number) + ' ' + comments + '\n'
+            new_content = new_info + branch_old
+            c_log.write(new_content)
+        if not os.path.exists(f'.grip/{commit_number}'):
+            os.makedirs(f'.grip/{commit_number}')
+        for element in files:
+            shutil.copy(f'.grip/index/{element}',f'.grip/{commit_number}')
+        with open(".grip/commit_count","r") as count:
+            commit_count = count.read().strip()
+        print(f"Committed as commit {commit_count}",file=sys.stdout)
+        with open(".grip/commit_count","w") as count:
+            count.write(str(int(commit_count)+1))
+        with open(f".grip/{c_branch}","w") as b_log:
+            b_log.write(str(int(commit_count)))
+    else:
+        print("nothing to commit",file=sys.stdout)
+        
+    
+ 
+parser = argparse.ArgumentParser()
+parser.add_argument('-a','--all',action='store_true')
+parser.add_argument('-m','--comments',type=str,required=True)
+args = parser.parse_args()
+copy_allfiles(args.comments, args.all)
